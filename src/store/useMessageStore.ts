@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { mockTasks } from '@/data/mockTasks';
 import type { Task } from '@/types';
+import { useUserStore } from '@/store/useUserStore';
 
 export type MessageType = 'system' | 'audit' | 'reminder';
 
@@ -15,6 +16,7 @@ export interface Message {
   taskId?: string;
   taskName?: string;
   taskStatus?: Task['status'];
+  supplierId?: string;
 }
 
 interface MessageState {
@@ -27,6 +29,7 @@ interface MessageState {
   addReminderMessages: (taskIds: string[], content: string) => void;
   toggleSelected: (id: string) => void;
   clearSelected: () => void;
+  getVisibleMessages: () => Message[];
 }
 
 const generateInitialMessages = (): Message[] => {
@@ -111,6 +114,7 @@ const generateInitialMessages = (): Message[] => {
         taskId: task.id,
         taskName: `${task.productName} - ${task.supplierName}`,
         taskStatus: task.status,
+        supplierId: task.supplierId,
       });
     }
   });
@@ -143,6 +147,7 @@ const generateInitialMessages = (): Message[] => {
       taskId: task.id,
       taskName: `${task.productName} - ${task.supplierName}`,
       taskStatus: task.status,
+      supplierId: task.supplierId,
     });
   });
 
@@ -199,6 +204,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
             taskId,
             taskName: `${task.productName} - ${task.supplierName}`,
             taskStatus: task.status,
+            supplierId: task.supplierId,
           };
         });
       return {
@@ -214,4 +220,12 @@ export const useMessageStore = create<MessageState>((set, get) => ({
     })),
 
   clearSelected: () => set({ selectedIds: [] }),
+
+  getVisibleMessages: () => {
+    const state = get();
+    const { userRole, currentUser } = useUserStore.getState();
+    if (userRole === 'enterprise') return state.messages;
+    const supplierId = currentUser?.id || 'sup-001';
+    return state.messages.filter((m) => !m.supplierId || m.supplierId === supplierId);
+  },
 }));

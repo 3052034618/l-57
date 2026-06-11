@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Bell,
   MessageSquare,
@@ -49,18 +50,22 @@ const reminderTemplates = [
 ];
 
 export default function Notifications() {
+  const navigate = useNavigate();
   const { tasks } = useTaskStore();
   const { userRole } = useUserStore();
   const showToast = useUINotificationStore((s) => s.showToast);
   const {
-    messages,
+    messages: allMessages,
     selectedIds,
     markAsRead,
     markManyAsRead,
     addReminderMessages,
     toggleSelected,
     clearSelected,
+    getVisibleMessages,
   } = useMessageStore();
+
+  const messages = useMemo(() => getVisibleMessages(), [allMessages, userRole]);
 
   const [activeTab, setActiveTab] = useState<TabKey>('all');
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
@@ -129,9 +134,27 @@ export default function Notifications() {
     clearSelected();
   };
 
-  const handleGoProcess = (taskId: string) => {
-    showToast('info', '正在跳转到任务：' + taskId);
-  };
+  const handleGoProcess = useCallback((taskId: string) => {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) {
+      showToast('error', '任务不存在');
+      return;
+    }
+    if (userRole === 'supplier') {
+      if (task.supplierId !== 'sup-001') {
+        showToast('error', '您无权访问此任务');
+        navigate('/dashboard');
+        return;
+      }
+      navigate(`/report/${taskId}`);
+    } else {
+      if (task.status === 'submitted' || task.status === 'auditing') {
+        navigate(`/audit/${taskId}`);
+      } else {
+        navigate(`/report/${taskId}`);
+      }
+    }
+  }, [tasks, userRole, navigate, showToast]);
 
   const handleOpenReminderModal = () => {
     setReminderModalOpen(true);

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   ChevronRight,
@@ -53,6 +53,12 @@ export default function ReportForm() {
   const showToast = useUINotificationStore((s) => s.showToast);
 
   const task = taskId ? getTaskById(taskId) : undefined;
+
+  useEffect(() => {
+    if (task && task.status === 'pending' && task.versions.length === 0 && taskId) {
+      saveDraft(taskId);
+    }
+  }, [task?.id, task?.status, task?.versions.length, taskId, saveDraft]);
 
   const [expandedStages, setExpandedStages] = useState<Record<ActivityStage, boolean>>({
     material: true,

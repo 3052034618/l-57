@@ -279,37 +279,16 @@ export async function exportToPDF(
     </html>
   `;
 
-  const iframe = document.createElement('iframe');
-  iframe.style.position = 'fixed';
-  iframe.style.right = '0';
-  iframe.style.bottom = '0';
-  iframe.style.width = '0';
-  iframe.style.height = '0';
-  iframe.style.border = '0';
-  document.body.appendChild(iframe);
-
-  const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-  if (iframeDoc) {
-    iframeDoc.open();
-    iframeDoc.write(htmlContent);
-    iframeDoc.close();
-  }
-
-  await new Promise<void>((resolve) => {
-    iframe.onload = () => {
-      setTimeout(() => {
-        try {
-          iframe.contentWindow?.focus();
-          iframe.contentWindow?.print();
-        } finally {
-          setTimeout(() => {
-            document.body.removeChild(iframe);
-          }, 100);
-          resolve();
-        }
-      }, 500);
-    };
-  });
+  const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const filename = `碳排放汇总报告_${getTimestamp()}.html`;
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 export function exportToExcel(

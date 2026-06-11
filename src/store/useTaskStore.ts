@@ -1,7 +1,28 @@
 import { create } from 'zustand';
-import type { Task, TaskStatus, ActivityData, ActivityStage, Attachment, AuditComment } from '@/types';
+import type { Task, TaskStatus, ActivityData, ActivityStage, Attachment, AuditComment, TaskVersion } from '@/types';
 import { mockTasks as initialTasks } from '@/data/mockTasks';
 import { validateTaskSubmission } from '@/utils/validation';
+import { useUserStore } from '@/store/useUserStore';
+
+function getCurrentUserName(): string {
+  return useUserStore.getState().currentUser?.name || '当前用户';
+}
+
+function ensureInitialVersion(versions: TaskVersion[], now: string): TaskVersion[] {
+  if (versions.length === 0) {
+    return [
+      {
+        version: 1,
+        submitTime: now,
+        submitter: getCurrentUserName(),
+        comment: '',
+        data: [],
+        attachments: [],
+      },
+    ];
+  }
+  return versions;
+}
 
 interface TaskState {
   tasks: Task[];
@@ -49,16 +70,18 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     set((state) => ({
       tasks: state.tasks.map((t) => {
         if (t.id !== taskId) return t;
-        const latestVersion = t.versions[t.versions.length - 1];
+        const now = new Date().toISOString();
+        const versions = ensureInitialVersion([...t.versions], now);
+        const latestVersion = versions[versions.length - 1];
         const updatedData = latestVersion.data.map((d) =>
           d.id === dataId ? { ...d, ...updates } : d
         );
-        const updatedVersions = [...t.versions];
-        updatedVersions[updatedVersions.length - 1] = { ...latestVersion, data: updatedData };
+        versions[versions.length - 1] = { ...latestVersion, data: updatedData };
         return {
           ...t,
-          versions: updatedVersions,
-          updatedAt: new Date().toISOString(),
+          versions,
+          currentVersion: versions.length,
+          updatedAt: now,
         };
       }),
     })),
@@ -67,14 +90,16 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     set((state) => ({
       tasks: state.tasks.map((t) => {
         if (t.id !== taskId) return t;
-        const latestVersion = t.versions[t.versions.length - 1];
+        const now = new Date().toISOString();
+        const versions = ensureInitialVersion([...t.versions], now);
+        const latestVersion = versions[versions.length - 1];
         const updatedData = [...latestVersion.data, newItem];
-        const updatedVersions = [...t.versions];
-        updatedVersions[updatedVersions.length - 1] = { ...latestVersion, data: updatedData };
+        versions[versions.length - 1] = { ...latestVersion, data: updatedData };
         return {
           ...t,
-          versions: updatedVersions,
-          updatedAt: new Date().toISOString(),
+          versions,
+          currentVersion: versions.length,
+          updatedAt: now,
         };
       }),
     })),
@@ -83,10 +108,11 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     set((state) => ({
       tasks: state.tasks.map((t) => {
         if (t.id !== taskId) return t;
-        const latestVersion = t.versions[t.versions.length - 1];
-        const newVersionNumber = latestVersion.version + 1;
         const now = new Date().toISOString();
-        const currentUser = '李志强';
+        const versions = ensureInitialVersion([...t.versions], now);
+        const latestVersion = versions[versions.length - 1];
+        const newVersionNumber = latestVersion.version + 1;
+        const currentUser = getCurrentUserName();
         const newVersion = {
           version: newVersionNumber,
           submitTime: now,
@@ -98,7 +124,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
         return {
           ...t,
           currentVersion: newVersionNumber,
-          versions: [...t.versions, newVersion],
+          versions: [...versions, newVersion],
           updatedAt: now,
         };
       }),
@@ -108,16 +134,18 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     set((state) => ({
       tasks: state.tasks.map((t) => {
         if (t.id !== taskId) return t;
-        const latestVersion = t.versions[t.versions.length - 1];
-        const updatedVersions = [...t.versions];
-        updatedVersions[updatedVersions.length - 1] = {
+        const now = new Date().toISOString();
+        const versions = ensureInitialVersion([...t.versions], now);
+        const latestVersion = versions[versions.length - 1];
+        versions[versions.length - 1] = {
           ...latestVersion,
           attachments: [...latestVersion.attachments, attachment],
         };
         return {
           ...t,
-          versions: updatedVersions,
-          updatedAt: new Date().toISOString(),
+          versions,
+          currentVersion: versions.length,
+          updatedAt: now,
         };
       }),
     })),
@@ -126,16 +154,18 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     set((state) => ({
       tasks: state.tasks.map((t) => {
         if (t.id !== taskId) return t;
-        const latestVersion = t.versions[t.versions.length - 1];
-        const updatedVersions = [...t.versions];
-        updatedVersions[updatedVersions.length - 1] = {
+        if (t.versions.length === 0) return t;
+        const now = new Date().toISOString();
+        const versions = [...t.versions];
+        const latestVersion = versions[versions.length - 1];
+        versions[versions.length - 1] = {
           ...latestVersion,
           attachments: latestVersion.attachments.filter((a) => a.id !== attachmentId),
         };
         return {
           ...t,
-          versions: updatedVersions,
-          updatedAt: new Date().toISOString(),
+          versions,
+          updatedAt: now,
         };
       }),
     })),
@@ -152,6 +182,10 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     const task = state.tasks.find((t) => t.id === taskId);
     if (!task) return { success: false, errors: ['任务不存在'] };
 
+    if (task.versions.length === 0) {
+      return { success: false, errors: ['任务无版本数据，请先保存草稿'] };
+    }
+
     const validation = validateTaskSubmission(task);
     if (!validation.valid) {
       return { success: false, errors: validation.errors };
@@ -159,7 +193,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
     const latestVersion = task.versions[task.versions.length - 1];
     const now = new Date().toISOString();
-    const currentUser = '李志强';
+    const currentUser = getCurrentUserName();
     const newVersionNumber = latestVersion.version + 1;
     const newVersion = {
       version: newVersionNumber,
@@ -179,7 +213,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
         updatedVersions.push(newVersion);
         return {
           ...t,
-          status: 'submitted',
+          status: 'submitted' as TaskStatus,
           currentVersion: newVersionNumber,
           versions: updatedVersions,
           updatedAt: now,
@@ -257,15 +291,21 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       tasks: state.tasks.map((t) => {
         if (t.id !== taskId) return t;
         const now = new Date().toISOString();
+        const versions = ensureInitialVersion([...t.versions], now);
+        if (t.versions.length === 0 && versionComment) {
+          versions[0] = { ...versions[0], comment: versionComment };
+        } else {
+          versions[versions.length - 1] = {
+            ...versions[versions.length - 1],
+            comment: versionComment || versions[versions.length - 1].comment,
+          };
+        }
         return {
           ...t,
-          status: 'draft',
+          status: 'draft' as TaskStatus,
+          currentVersion: versions.length,
+          versions,
           updatedAt: now,
-          versions: t.versions.map((v, idx) =>
-            idx === t.versions.length - 1
-              ? { ...v, comment: versionComment || v.comment }
-              : v
-          ),
         };
       }),
     })),

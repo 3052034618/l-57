@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Search, ChevronDown, Bell, LogOut, User } from 'lucide-react';
 import { useUserStore } from '@/store/useUserStore';
 import { useMessageStore } from '@/store/useMessageStore';
@@ -7,16 +7,23 @@ import { cn } from '@/lib/utils';
 
 const breadcrumbMap: Record<string, string> = {
   dashboard: '工作台',
-  tasks: '我的任务',
-  products: '产品汇总',
-  reminders: '提醒中心',
+  report: '资料填报',
+  audit: '审核',
+  summary: '产品汇总',
+  notifications: '提醒中心',
 };
 
 export default function Header() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { currentUser, userRole, logout, setUserRole } = useUserStore();
   const messages = useMessageStore((s) => s.messages);
-  const unreadCount = useMemo(() => messages.filter((m) => !m.isRead).length, [messages]);
+  const visibleMessages = useMemo(() => {
+    if (userRole === 'enterprise') return messages;
+    const supplierId = currentUser?.id || 'sup-001';
+    return messages.filter((m) => !m.supplierId || m.supplierId === supplierId);
+  }, [messages, userRole, currentUser?.id]);
+  const unreadCount = useMemo(() => visibleMessages.filter((m) => !m.isRead).length, [visibleMessages]);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchValue, setSearchValue] = useState('');
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -35,14 +42,11 @@ export default function Header() {
     const path = location.pathname;
     const crumbs: string[] = [];
 
-    if (path.includes('dashboard') || path === '/') {
+    const matchedKey = Object.keys(breadcrumbMap).find((key) => path.includes(key));
+    if (matchedKey) {
+      crumbs.push(breadcrumbMap[matchedKey]);
+    } else if (path === '/') {
       crumbs.push(breadcrumbMap.dashboard);
-    } else if (path.includes('tasks')) {
-      crumbs.push(breadcrumbMap.tasks);
-    } else if (path.includes('products')) {
-      crumbs.push(breadcrumbMap.products);
-    } else if (path.includes('reminders')) {
-      crumbs.push(breadcrumbMap.reminders);
     }
 
     return crumbs;
@@ -84,7 +88,7 @@ export default function Header() {
           />
         </div>
 
-        <button className="relative p-2 rounded-lg hover:bg-forest-50 transition-colors">
+        <button onClick={() => navigate('/notifications')} className="relative p-2 rounded-lg hover:bg-forest-50 transition-colors">
           <Bell className="h-5 w-5 text-forest-600" />
           {unreadCount > 0 && (
             <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-clay-500 text-white text-[10px] font-medium">

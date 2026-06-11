@@ -12,7 +12,12 @@ interface SidebarProps {
 export default function Sidebar({ activeTab, onNavigate }: SidebarProps) {
   const { currentUser, userRole, logout } = useUserStore();
   const messages = useMessageStore((s) => s.messages);
-  const unreadCount = useMemo(() => messages.filter((m) => !m.isRead).length, [messages]);
+  const visibleMessages = useMemo(() => {
+    if (userRole === 'enterprise') return messages;
+    const supplierId = currentUser?.id || 'sup-001';
+    return messages.filter((m) => !m.supplierId || m.supplierId === supplierId);
+  }, [messages, userRole, currentUser?.id]);
+  const unreadCount = useMemo(() => visibleMessages.filter((m) => !m.isRead).length, [visibleMessages]);
 
   const menuItems = [
     {
@@ -52,7 +57,7 @@ export default function Sidebar({ activeTab, onNavigate }: SidebarProps) {
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.key;
-          const isReminders = item.key === 'reminders';
+          const isReminders = item.key === 'notifications';
           return (
             <button
               key={item.key}
