@@ -12,30 +12,14 @@ import {
   Package,
   Building2,
   Calendar,
-  X,
 } from 'lucide-react';
 import { useTaskStore } from '@/store/useTaskStore';
 import { useUserStore } from '@/store/useUserStore';
 import { useUINotificationStore } from '@/store/useUINotificationStore';
+import { useMessageStore, type MessageType, type Message } from '@/store/useMessageStore';
 import Modal from '@/components/common/Modal';
 import { formatDate, formatDateTime, getStatusLabel } from '@/utils/format';
 import { cn } from '@/lib/utils';
-import type { Task } from '@/types';
-
-type MessageType = 'system' | 'audit' | 'reminder';
-
-interface Message {
-  id: string;
-  type: MessageType;
-  title: string;
-  summary: string;
-  content: string;
-  time: string;
-  isRead: boolean;
-  taskId?: string;
-  taskName?: string;
-  task?: Task;
-}
 
 type TabKey = 'all' | MessageType;
 
@@ -65,88 +49,26 @@ const reminderTemplates = [
 ];
 
 export default function Notifications() {
-  const { tasks, sendReminders } = useTaskStore();
+  const { tasks } = useTaskStore();
   const { userRole } = useUserStore();
   const showToast = useUINotificationStore((s) => s.showToast);
+  const {
+    messages,
+    selectedIds,
+    markAsRead,
+    markManyAsRead,
+    addReminderMessages,
+    toggleSelected,
+    clearSelected,
+  } = useMessageStore();
 
   const [activeTab, setActiveTab] = useState<TabKey>('all');
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [reminderModalOpen, setReminderModalOpen] = useState(false);
   const [reminderTaskIds, setReminderTaskIds] = useState<string[]>([]);
   const [reminderTemplate, setReminderTemplate] = useState(reminderTemplates[0].key);
   const [reminderContent, setReminderContent] = useState(reminderTemplates[0].content);
   const [templateDropdownOpen, setTemplateDropdownOpen] = useState(false);
-
-  const messages = useMemo<Message[]>(() => {
-    const result: Message[] = [];
-
-    result.push(
-      {
-        id: 'sys-001',
-        type: 'system',
-        title: '系统升级通知',
-        summary: '碳排放核算系统将于本周五晚进行例行维护升级...',
-        content: '尊敬的用户，您好！\n\n为了提供更优质的服务，碳排放核算管理系统将于 2024年12月13日（周五）22:00 - 次日 02:00 进行例行维护升级。\n\n升级内容：\n1. 优化排放因子数据库，新增 200+ 因子数据\n2. 提升报表导出速度\n3. 修复已知问题\n\n维护期间系统将暂停服务，请您提前保存好正在编辑的数据。给您带来的不便，敬请谅解。\n\n—— 绿能智造科技有限公司',
-        time: '2024-12-10T09:30:00Z',
-        isRead: false,
-      },
-      {
-        id: 'sys-002',
-        type: 'system',
-        title: '新功能上线：批量数据导入',
-        summary: '现已支持通过 Excel 模板批量导入活动数据...',
-        content: '新功能上线通知：\n\n批量数据导入功能现已正式上线！您可以：\n1. 在任务填报页面下载 Excel 导入模板\n2. 按照模板格式填写活动数据\n3. 一键上传批量导入，自动计算排放量\n\n该功能将大幅提升数据填报效率，欢迎体验使用。',
-        time: '2024-12-08T14:00:00Z',
-        isRead: true,
-      }
-    );
-
-    tasks.forEach((task) => {
-      if (task.comments.length > 0) {
-        const latestComment = task.comments[task.comments.length - 1];
-        result.push({
-          id: `audit-${task.id}`,
-          type: 'audit',
-          title: `审核反馈：${task.productName}`,
-          summary: latestComment.content.slice(0, 50) + '...',
-          content: latestComment.content,
-          time: latestComment.createdAt,
-          isRead: task.status !== 'rejected' && task.status !== 'auditing',
-          taskId: task.id,
-          taskName: `${task.productName} - ${task.supplierName}`,
-          task,
-        });
-      }
-    });
-
-    tasks
-      .filter((t) => t.status === 'pending' || t.status === 'draft')
-      .forEach((task, idx) => {
-        const deadline = new Date(task.deadline);
-        const now = new Date();
-        const daysLeft = Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-        let urgencyText = '';
-        if (daysLeft < 0) urgencyText = '已逾期';
-        else if (daysLeft <= 3) urgencyText = `仅剩 ${daysLeft} 天`;
-        else urgencyText = `还有 ${daysLeft} 天`;
-
-        result.push({
-          id: `rem-${task.id}-${idx}`,
-          type: 'reminder',
-          title: `催办提醒：${task.productName}`,
-          summary: `碳排放数据填报任务${urgencyText}截止，请尽快处理。`,
-          content: `您好：\n\n您负责的「${task.productName}」碳排放数据填报任务${urgencyText}截止（截止日期：${formatDate(task.deadline)}）。\n\n请尽快登录系统完成数据填报并提交审核，确保碳核算工作按时完成。\n\n任务详情：\n- 产品：${task.productName}\n- 供应商：${task.supplierName}\n- 截止日期：${formatDate(task.deadline)}\n- 当前状态：${getStatusLabel(task.status)}\n\n感谢您的配合！`,
-          time: new Date(now.getTime() - idx * 3600000 * 2).toISOString(),
-          isRead: daysLeft > 3,
-          taskId: task.id,
-          taskName: `${task.productName} - ${task.supplierName}`,
-          task,
-        });
-      });
-
-    return result.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
-  }, [tasks]);
 
   const filteredMessages = useMemo(() => {
     if (activeTab === 'all') return messages;
@@ -177,37 +99,38 @@ export default function Notifications() {
 
   const toggleSelectAll = () => {
     if (allSelected) {
-      setSelectedIds([]);
+      clearSelected();
     } else {
-      setSelectedIds(filteredMessages.map((m) => m.id));
+      filteredMessages.forEach((m) => {
+        if (!selectedIds.includes(m.id)) toggleSelected(m.id);
+      });
     }
-  };
-
-  const toggleSelectMessage = (id: string) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
-    );
   };
 
   const handleSelectMessage = useCallback((msg: Message) => {
     setSelectedMessageId(msg.id);
-  }, []);
+    if (!msg.isRead) {
+      markAsRead(msg.id);
+    }
+  }, [markAsRead]);
 
   const handleMarkAsRead = useCallback((id: string) => {
+    markAsRead(id);
     showToast('success', '消息已标记为已读');
-  }, [showToast]);
+  }, [markAsRead, showToast]);
 
   const handleBatchMarkAsRead = () => {
     if (selectedIds.length === 0) {
       showToast('warning', '请先选择要标记的消息');
       return;
     }
-    showToast('success', `已将 ${selectedIds.length} 条消息标记为已读`);
-    setSelectedIds([]);
+    markManyAsRead(selectedIds);
+    showToast('success', '已将 ' + selectedIds.length + ' 条消息标记为已读');
+    clearSelected();
   };
 
   const handleGoProcess = (taskId: string) => {
-    showToast('info', `正在跳转到任务：${taskId}`);
+    showToast('info', '正在跳转到任务：' + taskId);
   };
 
   const handleOpenReminderModal = () => {
@@ -241,14 +164,19 @@ export default function Notifications() {
       showToast('error', '请填写催办内容');
       return;
     }
-    sendReminders(reminderTaskIds, reminderContent);
-    showToast('success', `已向 ${reminderTaskIds.length} 个任务发送催办消息`);
+    addReminderMessages(reminderTaskIds, reminderContent);
+    showToast('success', '已向 ' + reminderTaskIds.length + ' 个任务发送催办消息');
     setReminderModalOpen(false);
   };
 
   const pendingTasks = useMemo(() => {
     return tasks.filter((t) => t.status === 'pending' || t.status === 'draft');
   }, [tasks]);
+
+  const selectedTask = useMemo(() => {
+    if (!selectedMessage?.taskId) return null;
+    return tasks.find((t) => t.id === selectedMessage.taskId) || null;
+  }, [tasks, selectedMessage]);
 
   return (
     <div className="space-y-6">
@@ -358,7 +286,7 @@ export default function Notifications() {
                             checked={isChecked}
                             onChange={(e) => {
                               e.stopPropagation();
-                              toggleSelectMessage(msg.id);
+                              toggleSelected(msg.id);
                             }}
                             onClick={(e) => e.stopPropagation()}
                             className="mt-1 w-4 h-4 rounded border-forest-300 text-forest-500 focus:ring-forest-400 shrink-0"
@@ -450,7 +378,7 @@ export default function Notifications() {
                     {selectedMessage.content}
                   </div>
 
-                  {selectedMessage.task && (
+                  {selectedTask && (
                     <div className="mt-6 p-4 rounded-xl bg-gradient-to-br from-forest-50 to-sand-50/50 border border-forest-100">
                       <h4 className="text-sm font-semibold text-forest-800 mb-3">
                         关联任务信息
@@ -460,28 +388,28 @@ export default function Notifications() {
                           <Package className="h-4 w-4 text-slate-400 shrink-0" />
                           <span className="text-slate-500">产品：</span>
                           <span className="text-slate-700 font-medium">
-                            {selectedMessage.task.productName}
+                            {selectedTask.productName}
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
                           <Building2 className="h-4 w-4 text-slate-400 shrink-0" />
                           <span className="text-slate-500">供应商：</span>
                           <span className="text-slate-700 font-medium">
-                            {selectedMessage.task.supplierName}
+                            {selectedTask.supplierName}
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
                           <Calendar className="h-4 w-4 text-slate-400 shrink-0" />
                           <span className="text-slate-500">截止日期：</span>
                           <span className="text-slate-700 font-medium">
-                            {formatDate(selectedMessage.task.deadline)}
+                            {formatDate(selectedTask.deadline)}
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
                           <Clock className="h-4 w-4 text-slate-400 shrink-0" />
                           <span className="text-slate-500">当前状态：</span>
                           <span className="text-forest-600 font-medium">
-                            {getStatusLabel(selectedMessage.task.status)}
+                            {getStatusLabel(selectedTask.status)}
                           </span>
                         </div>
                       </div>

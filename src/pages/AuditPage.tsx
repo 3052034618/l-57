@@ -31,6 +31,7 @@ import { sumTotalEmissions } from '@/utils/emission';
 import StatusTag from '@/components/common/StatusTag';
 import CommentThread from '@/components/business/CommentThread';
 import Modal from '@/components/common/Modal';
+import AccessGuard from '@/components/access/AccessGuard';
 
 const STAGES: ActivityStage[] = ['material', 'production', 'transport'];
 
@@ -292,7 +293,8 @@ export default function AuditPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <AccessGuard taskId={taskId!}>
+      <div className="space-y-6">
       <nav className="flex items-center gap-2 text-sm text-slate-500">
         <Home className="h-4 w-4" />
         <ChevronRight className="h-4 w-4" />
@@ -645,6 +647,7 @@ export default function AuditPage() {
           />
         </div>
       </Modal>
-    </div>
+      </div>
+    </AccessGuard>
   );
 }

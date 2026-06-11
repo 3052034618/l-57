@@ -7,6 +7,15 @@ import SummaryPage from "@/pages/SummaryPage";
 import Notifications from "@/pages/Notifications";
 import Layout from "@/components/layout/Layout";
 import ToastContainer from "@/components/common/ToastContainer";
+import { useUserStore } from "@/store/useUserStore";
+
+function ProtectedLayout() {
+  const { currentUser } = useUserStore();
+  if (currentUser === null) {
+    return <Navigate to="/" replace />;
+  }
+  return <Layout />;
+}
 
 export default function App() {
   return (
@@ -14,7 +23,7 @@ export default function App() {
       <ToastContainer />
       <Routes>
         <Route path="/" element={<RoleSelect />} />
-        <Route element={<Layout />}>
+        <Route element={<ProtectedLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/report/:taskId" element={<ReportForm />} />
           <Route path="/audit/:taskId" element={<AuditPage />} />

@@ -77,15 +77,24 @@ export default function Dashboard() {
   }, [visibleTasks, filters]);
 
   const handleViewTask = (taskId: string) => {
-    navigate(`/tasks/${taskId}`);
+    const task = tasks.find((t) => t.id === taskId);
+    if (userRole === 'enterprise') {
+      if (task && (task.status === 'approved' || task.status === 'rejected')) {
+        navigate(`/audit/${taskId}`);
+      } else {
+        navigate(`/report/${taskId}`);
+      }
+    } else {
+      navigate(`/report/${taskId}`);
+    }
   };
 
   const handleEditTask = (taskId: string) => {
-    navigate(`/tasks/${taskId}/edit`);
+    navigate(`/report/${taskId}`);
   };
 
   const handleAuditTask = (taskId: string) => {
-    navigate(`/tasks/${taskId}/audit`);
+    navigate(`/audit/${taskId}`);
   };
 
   const legendItems = [
@@ -100,11 +109,11 @@ export default function Dashboard() {
       ? [
           { label: '新建任务', icon: Plus, color: 'from-forest-500 to-forest-600' },
           { label: '批量催办', icon: Send, color: 'from-forest-400 to-forest-500' },
-          { label: '导出报告', icon: FileText, color: 'from-forest-300 to-forest-500' },
+          { label: '导出报告', icon: FileText, color: 'from-forest-300 to-forest-500', onClick: () => navigate('/summary') },
         ]
       : [
           { label: '待填报任务', icon: ClipboardList, color: 'from-clay-400 to-clay-500' },
-          { label: '我的消息', icon: Bell, color: 'from-forest-400 to-forest-500' },
+          { label: '我的消息', icon: Bell, color: 'from-forest-400 to-forest-500', onClick: () => navigate('/notifications') },
           { label: '填报指南', icon: FileText, color: 'from-forest-300 to-forest-500' },
         ];
 
@@ -248,6 +257,7 @@ export default function Dashboard() {
               return (
                 <button
                   key={action.label}
+                  onClick={action.onClick}
                   className="group relative flex flex-col items-center justify-center gap-3 p-5 rounded-xl bg-gradient-to-br from-forest-50 to-forest-100/50 border border-forest-100 hover:border-forest-300 hover:shadow-card-hover transition-all duration-300"
                 >
                   <div

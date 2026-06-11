@@ -26,6 +26,13 @@ import { formatNumber, formatEmission, formatDate } from '@/utils/format';
 import { sumStageEmissions, sumTotalEmissions } from '@/utils/emission';
 import { cn } from '@/lib/utils';
 import type { ActivityStage, Task } from '@/types';
+import {
+  exportToPDF,
+  exportToExcel,
+  type ExportFilters,
+  type ExportSummaryRow,
+  type ExportStageData,
+} from '@/utils/exportReport';
 
 interface ProductSummaryRow {
   productId: string;
@@ -356,9 +363,78 @@ export default function SummaryPage() {
     );
   };
 
-  const handleExport = (type: 'pdf' | 'excel') => {
+  const selectedSuppliersLabels = useMemo(
+    () =>
+      mockSuppliers
+        .filter((s) => selectedSuppliers.includes(s.id))
+        .map((s) => s.name),
+    [selectedSuppliers]
+  );
+
+  const exportSummaryData = useMemo<ExportSummaryRow[]>(
+    () =>
+      productSummaries.map((p) => ({
+        productId: p.productId,
+        productName: p.productName,
+        productCode: p.productCode,
+        totalEmission: p.totalEmission,
+        materialEmission: p.materialEmission,
+        productionEmission: p.productionEmission,
+        transportEmission: p.transportEmission,
+        supplierCount: p.supplierCount,
+        hasAnomaly: p.hasAnomaly,
+        status: p.status,
+      })),
+    [productSummaries]
+  );
+
+  const exportStageData = useMemo<ExportStageData[]>(
+    () =>
+      visibleTasks.map((task) => {
+        const latestVersion = task.versions[task.versions.length - 1];
+        const activityData = latestVersion?.data ?? [];
+        const material = sumStageEmissions(activityData, 'material');
+        const production = sumStageEmissions(activityData, 'production');
+        const transport = sumStageEmissions(activityData, 'transport');
+        return {
+          task,
+          stageEmissions: {
+            material,
+            production,
+            transport,
+            total: material + production + transport,
+          },
+        };
+      }),
+    [visibleTasks]
+  );
+
+  const handleExport = async (type: 'pdf' | 'excel') => {
     setExportDropdownOpen(false);
-    showToast('success', `正在导出${type === 'pdf' ? 'PDF' : 'Excel'}报告...`);
+
+    const filters: ExportFilters = {
+      selectedProduct,
+      selectedProductLabel: currentProductLabel,
+      selectedSuppliers,
+      selectedSuppliersLabels,
+      dateFrom,
+      dateTo,
+    };
+
+    try {
+      showToast('info', `正在生成${type === 'pdf' ? 'PDF' : 'Excel'}报告...`);
+
+      if (type === 'pdf') {
+        await exportToPDF(filters, exportSummaryData, exportStageData);
+        showToast('success', '报告已生成并开始下载');
+      } else {
+        exportToExcel(filters, exportSummaryData, exportStageData);
+        showToast('success', '报告已生成并开始下载');
+      }
+    } catch (error) {
+      console.error('导出失败:', error);
+      showToast('error', '导出失败，请稍后重试');
+    }
   };
 
   const handleViewDetail = (productId: string) => {

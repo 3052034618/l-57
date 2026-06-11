@@ -1,5 +1,7 @@
+import { useMemo } from 'react';
 import { LayoutDashboard, FileText, ClipboardCheck, BarChart3, Bell, LogOut } from 'lucide-react';
 import { useUserStore } from '@/store/useUserStore';
+import { useMessageStore } from '@/store/useMessageStore';
 import { cn } from '@/lib/utils';
 
 interface SidebarProps {
@@ -9,20 +11,22 @@ interface SidebarProps {
 
 export default function Sidebar({ activeTab, onNavigate }: SidebarProps) {
   const { currentUser, userRole, logout } = useUserStore();
+  const messages = useMessageStore((s) => s.messages);
+  const unreadCount = useMemo(() => messages.filter((m) => !m.isRead).length, [messages]);
 
   const menuItems = [
     {
-      key: userRole === 'enterprise' ? 'dashboard' : 'tasks',
+      key: 'dashboard',
       label: userRole === 'enterprise' ? '工作台' : '我的任务',
       icon: userRole === 'enterprise' ? LayoutDashboard : ClipboardCheck,
     },
     {
-      key: 'products',
+      key: 'summary',
       label: '产品汇总',
       icon: BarChart3,
     },
     {
-      key: 'reminders',
+      key: 'notifications',
       label: '提醒中心',
       icon: Bell,
     },
@@ -48,6 +52,7 @@ export default function Sidebar({ activeTab, onNavigate }: SidebarProps) {
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.key;
+          const isReminders = item.key === 'reminders';
           return (
             <button
               key={item.key}
@@ -55,7 +60,12 @@ export default function Sidebar({ activeTab, onNavigate }: SidebarProps) {
               className={cn('sidebar-item w-full', isActive && 'sidebar-item-active')}
             >
               <Icon className="h-5 w-5" />
-              <span className="font-medium">{item.label}</span>
+              <span className="font-medium flex-1 text-left">{item.label}</span>
+              {isReminders && unreadCount > 0 && (
+                <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1.5 rounded-full bg-clay-500 text-white text-[10px] font-medium">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
             </button>
           );
         })}

@@ -31,6 +31,7 @@ import StatusTag from '@/components/common/StatusTag';
 import StageSection from '@/components/business/StageSection';
 import AttachmentUploader from '@/components/business/AttachmentUploader';
 import CommentThread from '@/components/business/CommentThread';
+import AccessGuard from '@/components/access/AccessGuard';
 
 const STAGES: ActivityStage[] = ['material', 'production', 'transport'];
 
@@ -44,6 +45,7 @@ export default function ReportForm() {
   const { taskId } = useParams<{ taskId: string }>();
   const getTaskById = useTaskStore((s) => s.getTaskById);
   const updateActivityData = useTaskStore((s) => s.updateActivityData);
+  const addActivityData = useTaskStore((s) => s.addActivityData);
   const addAttachment = useTaskStore((s) => s.addAttachment);
   const removeAttachment = useTaskStore((s) => s.removeAttachment);
   const saveDraft = useTaskStore((s) => s.saveDraft);
@@ -157,6 +159,28 @@ export default function ReportForm() {
     }
   }, [taskId, submitTask, showToast]);
 
+  const handleAddActivityData = useCallback(
+    (stage: ActivityStage) => {
+      if (!taskId) return;
+      const random = Math.random().toString(36).slice(2, 8);
+      const newItem: ActivityData = {
+        id: `ad-${Date.now()}-${random}`,
+        stage,
+        name: '',
+        quantity: null,
+        unit: 'kg',
+        factorId: null,
+        emission: null,
+      };
+      addActivityData(taskId, stage, newItem);
+      if (!expandedStages[stage]) {
+        setExpandedStages((prev) => ({ ...prev, [stage]: true }));
+      }
+      showToast('success', `已新增${getStageLabel(stage)}活动数据`);
+    },
+    [taskId, addActivityData, expandedStages, showToast]
+  );
+
   const scrollToError = useCallback(() => {
     const firstErrorId = Object.keys(validationErrors)[0];
     if (firstErrorId) {
@@ -177,7 +201,8 @@ export default function ReportForm() {
   }
 
   return (
-    <div className="space-y-6">
+    <AccessGuard taskId={taskId!}>
+      <div className="space-y-6">
       <nav className="flex items-center gap-2 text-sm text-slate-500">
         <Home className="h-4 w-4" />
         <ChevronRight className="h-4 w-4" />
@@ -371,6 +396,7 @@ export default function ReportForm() {
               factors={mockFactors}
               expanded={expandedStages[stage]}
               onToggle={() => toggleStage(stage)}
+              onAddData={() => handleAddActivityData(stage)}
               onDataChange={handleDataChange}
               validationErrors={validationErrors}
             />
@@ -398,6 +424,7 @@ export default function ReportForm() {
         </div>
         <CommentThread comments={task.comments} />
       </div>
-    </div>
+      </div>
+    </AccessGuard>
   );
 }

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Task, TaskStatus, ActivityData, Attachment, AuditComment } from '@/types';
+import type { Task, TaskStatus, ActivityData, ActivityStage, Attachment, AuditComment } from '@/types';
 import { mockTasks as initialTasks } from '@/data/mockTasks';
 import { validateTaskSubmission } from '@/utils/validation';
 
@@ -12,10 +12,12 @@ interface TaskState {
   getTasksBySupplier: (supplierId: string) => Task[];
   updateTaskStatus: (taskId: string, status: TaskStatus) => void;
   updateActivityData: (taskId: string, dataId: string, updates: Partial<ActivityData>) => void;
+  addActivityData: (taskId: string, stage: ActivityStage, newItem: ActivityData) => void;
   addAttachment: (taskId: string, attachment: Attachment) => void;
   removeAttachment: (taskId: string, attachmentId: string) => void;
   addAuditComment: (taskId: string, comment: AuditComment) => void;
   submitTask: (taskId: string) => { success: boolean; errors?: string[] };
+  createNewVersion: (taskId: string, comment?: string) => void;
   approveTask: (taskId: string, comment?: string) => void;
   rejectTask: (taskId: string, reason: string) => void;
   markAnomaly: (taskId: string, dataId: string) => void;
@@ -57,6 +59,47 @@ export const useTaskStore = create<TaskState>((set, get) => ({
           ...t,
           versions: updatedVersions,
           updatedAt: new Date().toISOString(),
+        };
+      }),
+    })),
+
+  addActivityData: (taskId, stage, newItem) =>
+    set((state) => ({
+      tasks: state.tasks.map((t) => {
+        if (t.id !== taskId) return t;
+        const latestVersion = t.versions[t.versions.length - 1];
+        const updatedData = [...latestVersion.data, newItem];
+        const updatedVersions = [...t.versions];
+        updatedVersions[updatedVersions.length - 1] = { ...latestVersion, data: updatedData };
+        return {
+          ...t,
+          versions: updatedVersions,
+          updatedAt: new Date().toISOString(),
+        };
+      }),
+    })),
+
+  createNewVersion: (taskId, comment) =>
+    set((state) => ({
+      tasks: state.tasks.map((t) => {
+        if (t.id !== taskId) return t;
+        const latestVersion = t.versions[t.versions.length - 1];
+        const newVersionNumber = latestVersion.version + 1;
+        const now = new Date().toISOString();
+        const currentUser = '李志强';
+        const newVersion = {
+          version: newVersionNumber,
+          submitTime: now,
+          submitter: currentUser,
+          comment: comment || latestVersion.comment,
+          data: JSON.parse(JSON.stringify(latestVersion.data)),
+          attachments: JSON.parse(JSON.stringify(latestVersion.attachments)),
+        };
+        return {
+          ...t,
+          currentVersion: newVersionNumber,
+          versions: [...t.versions, newVersion],
+          updatedAt: now,
         };
       }),
     })),
@@ -114,17 +157,30 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       return { success: false, errors: validation.errors };
     }
 
+    const latestVersion = task.versions[task.versions.length - 1];
+    const now = new Date().toISOString();
+    const currentUser = '李志强';
+    const newVersionNumber = latestVersion.version + 1;
+    const newVersion = {
+      version: newVersionNumber,
+      submitTime: now,
+      submitter: currentUser,
+      comment: latestVersion.comment || '提交审核',
+      data: JSON.parse(JSON.stringify(latestVersion.data)),
+      attachments: JSON.parse(JSON.stringify(latestVersion.attachments)),
+    };
+
     set({
       tasks: state.tasks.map((t) => {
         if (t.id !== taskId) return t;
-        const now = new Date().toISOString();
-        const latestVersion = t.versions[t.versions.length - 1];
-        const updatedVersion = { ...latestVersion, submitTime: now };
+        const updatedLatestVersion = { ...latestVersion, submitTime: now };
         const updatedVersions = [...t.versions];
-        updatedVersions[updatedVersions.length - 1] = updatedVersion;
+        updatedVersions[updatedVersions.length - 1] = updatedLatestVersion;
+        updatedVersions.push(newVersion);
         return {
           ...t,
           status: 'submitted',
+          currentVersion: newVersionNumber,
           versions: updatedVersions,
           updatedAt: now,
         };

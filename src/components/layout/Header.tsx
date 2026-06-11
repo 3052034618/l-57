@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Search, ChevronDown, Bell, LogOut, User } from 'lucide-react';
 import { useUserStore } from '@/store/useUserStore';
+import { useMessageStore } from '@/store/useMessageStore';
 import { cn } from '@/lib/utils';
 
 const breadcrumbMap: Record<string, string> = {
@@ -14,6 +15,8 @@ const breadcrumbMap: Record<string, string> = {
 export default function Header() {
   const location = useLocation();
   const { currentUser, userRole, logout, setUserRole } = useUserStore();
+  const messages = useMessageStore((s) => s.messages);
+  const unreadCount = useMemo(() => messages.filter((m) => !m.isRead).length, [messages]);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchValue, setSearchValue] = useState('');
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -83,7 +86,11 @@ export default function Header() {
 
         <button className="relative p-2 rounded-lg hover:bg-forest-50 transition-colors">
           <Bell className="h-5 w-5 text-forest-600" />
-          <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-clay-500" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-clay-500 text-white text-[10px] font-medium">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
         </button>
 
         <div className="relative" ref={userMenuRef}>

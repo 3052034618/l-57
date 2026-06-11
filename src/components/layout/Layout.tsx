@@ -10,22 +10,19 @@ export default function Layout() {
 
   const getActiveTab = (): string => {
     const path = location.pathname;
-    if (path.includes('dashboard') || path === '/') return 'dashboard';
-    if (path.includes('tasks')) return 'tasks';
-    if (path.includes('products')) return 'products';
-    if (path.includes('reminders')) return 'reminders';
+    if (path.startsWith('/dashboard') || path.startsWith('/report') || path.startsWith('/audit')) return 'dashboard';
+    if (path.startsWith('/summary')) return 'summary';
+    if (path.startsWith('/notifications')) return 'notifications';
     return 'dashboard';
   };
 
   const handleNavigate = (tab: string) => {
     if (tab === 'dashboard') {
-      navigate(userRole === 'enterprise' ? '/dashboard' : '/tasks');
-    } else if (tab === 'tasks') {
-      navigate('/tasks');
-    } else if (tab === 'products') {
-      navigate('/products');
-    } else if (tab === 'reminders') {
-      navigate('/reminders');
+      navigate('/dashboard');
+    } else if (tab === 'summary') {
+      navigate('/summary');
+    } else if (tab === 'notifications') {
+      navigate('/notifications');
     }
   };
 
