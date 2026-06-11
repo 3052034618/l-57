@@ -4,6 +4,13 @@ import type { ActivityStage, Task } from '@/types';
 import { formatNumber, formatDate, formatDateTime } from '@/utils/format';
 import { sumStageEmissions, sumTotalEmissions } from '@/utils/emission';
 
+export interface ExportResult {
+  fileName: string;
+  fileSize: number;
+  recordFilters: ExportFilters;
+  summaryCount: number;
+}
+
 export interface ExportFilters {
   selectedProduct: string;
   selectedProductLabel: string;
@@ -283,7 +290,7 @@ export async function exportToPDF(
   filters: ExportFilters,
   summaryData: ExportSummaryRow[],
   stageData: ExportStageData[]
-): Promise<void> {
+): Promise<ExportResult> {
   const { html } = buildReportHTML(filters, summaryData, stageData);
 
   const container = document.createElement('div');
@@ -331,6 +338,13 @@ export async function exportToPDF(
 
     const filename = `碳排放汇总报告_${getTimestamp()}.pdf`;
     pdf.save(filename);
+
+    return {
+      fileName: filename,
+      fileSize: canvas.toDataURL().length,
+      recordFilters: filters,
+      summaryCount: summaryData.length,
+    };
   } finally {
     document.body.removeChild(container);
   }
@@ -340,7 +354,7 @@ export function exportToExcel(
   filters: ExportFilters,
   summaryData: ExportSummaryRow[],
   stageData: ExportStageData[]
-): void {
+): ExportResult {
   const now = new Date();
   const filterLines = buildFiltersText(filters);
   const totalEmission = summaryData.reduce((sum, r) => sum + r.totalEmission, 0);
@@ -464,4 +478,11 @@ export function exportToExcel(
   link.click();
   document.body.removeChild(link);
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+  return {
+    fileName: filename,
+    fileSize: BOM.length + tsvContent.length,
+    recordFilters: filters,
+    summaryCount: summaryData.length,
+  };
 }

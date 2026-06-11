@@ -25,6 +25,7 @@ interface MessageState {
   markAsRead: (id: string) => void;
   markManyAsRead: (ids: string[]) => void;
   markAllAsRead: () => void;
+  markVisibleAsRead: () => void;
   addMessage: (msg: Omit<Message, 'id' | 'time' | 'isRead'>) => void;
   addReminderMessages: (taskIds: string[], content: string) => void;
   toggleSelected: (id: string) => void;
@@ -177,6 +178,18 @@ export const useMessageStore = create<MessageState>((set, get) => ({
     set((state) => ({
       messages: state.messages.map((m) => ({ ...m, isRead: true })),
     })),
+
+  markVisibleAsRead: () =>
+    set((state) => {
+      const visibleIds = new Set(
+        state.getVisibleMessages().map((m) => m.id)
+      );
+      return {
+        messages: state.messages.map((m) =>
+          visibleIds.has(m.id) ? { ...m, isRead: true } : m
+        ),
+      };
+    }),
 
   addMessage: (msg) =>
     set((state) => ({

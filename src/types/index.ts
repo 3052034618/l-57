@@ -131,3 +131,20 @@ export interface TaskFilter {
   dateFrom?: string;
   dateTo?: string;
 }
+
+export interface ExportRecord {
+  id: string;
+  exportTime: string;
+  fileType: 'pdf' | 'excel';
+  fileName: string;
+  fileSize: number;
+  filters: {
+    selectedProduct: string;
+    selectedProductLabel: string;
+    selectedSuppliers: string[];
+    selectedSuppliersLabels: string[];
+    dateFrom: string;
+    dateTo: string;
+  };
+  summaryCount: number;
+}

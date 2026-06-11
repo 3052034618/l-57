@@ -14,15 +14,18 @@ import {
   Eye,
   CalendarRange,
   ChevronRight,
+  History,
 } from 'lucide-react';
 import { useTaskStore } from '@/store/useTaskStore';
 import { useUserStore } from '@/store/useUserStore';
 import { useUINotificationStore } from '@/store/useUINotificationStore';
+import { useExportStore } from '@/store/useExportStore';
 import StatCard from '@/components/business/StatCard';
 import StatusTag from '@/components/common/StatusTag';
+import EmptyState from '@/components/common/EmptyState';
 import { mockProducts } from '@/data/mockProducts';
 import { mockSuppliers } from '@/data/mockSuppliers';
-import { formatNumber, formatEmission, formatDate } from '@/utils/format';
+import { formatNumber, formatEmission, formatDate, formatDateTime, formatFileSize } from '@/utils/format';
 import { sumStageEmissions, sumTotalEmissions } from '@/utils/emission';
 import { cn } from '@/lib/utils';
 import type { ActivityStage, Task } from '@/types';
@@ -52,6 +55,8 @@ export default function SummaryPage() {
   const { tasks } = useTaskStore();
   const { userRole } = useUserStore();
   const showToast = useUINotificationStore((s) => s.showToast);
+  const { addRecord, getRecentRecords, triggerDownload } = useExportStore();
+  const recentRecords = getRecentRecords(5);
 
   const [selectedProduct, setSelectedProduct] = useState<string>('all');
   const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
@@ -424,13 +429,22 @@ export default function SummaryPage() {
     try {
       showToast('info', `正在生成${type === 'pdf' ? 'PDF' : 'Excel'}报告...`);
 
+      let result;
       if (type === 'pdf') {
-        await exportToPDF(filters, exportSummaryData, exportStageData);
+        result = await exportToPDF(filters, exportSummaryData, exportStageData);
         showToast('success', '报告已生成并开始下载');
       } else {
-        exportToExcel(filters, exportSummaryData, exportStageData);
+        result = exportToExcel(filters, exportSummaryData, exportStageData);
         showToast('success', '报告已生成并开始下载');
       }
+
+      addRecord({
+        fileType: type,
+        fileName: result.fileName,
+        fileSize: result.fileSize,
+        filters: result.recordFilters,
+        summaryCount: result.summaryCount,
+      });
     } catch (error) {
       console.error('导出失败:', error);
       showToast('error', '导出失败，请稍后重试');
@@ -823,6 +837,75 @@ export default function SummaryPage() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div className="card overflow-hidden">
+        <div className="px-6 py-4 border-b border-forest-100 flex items-center gap-2">
+          <History className="h-5 w-5 text-forest-600" />
+          <h3 className="text-base font-semibold text-forest-800">最近导出记录</h3>
+        </div>
+        {recentRecords.length === 0 ? (
+          <EmptyState
+            title="暂无导出记录"
+            description="导出报告后将在此处显示最近5条记录，可随时重新下载"
+            icon={History}
+          />
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {recentRecords.map((record) => (
+              <div
+                key={record.id}
+                className="px-6 py-4 flex items-center gap-4 hover:bg-slate-50 transition-colors"
+              >
+                <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-forest-50 shrink-0">
+                  {record.fileType === 'pdf' ? (
+                    <FileText className="h-5 w-5 text-forest-600" />
+                  ) : (
+                    <FileSpreadsheet className="h-5 w-5 text-forest-600" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-medium text-forest-800 truncate">{record.fileName}</span>
+                    <span
+                      className={cn(
+                        'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium',
+                        record.fileType === 'pdf'
+                          ? 'bg-clay-100 text-clay-600'
+                          : 'bg-emerald-100 text-emerald-600'
+                      )}
+                    >
+                      {record.fileType === 'pdf' ? 'PDF' : 'Excel'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-4 text-xs text-slate-500">
+                    <span>{formatDateTime(record.exportTime)}</span>
+                    <span>·</span>
+                    <span>{formatFileSize(record.fileSize)}</span>
+                    <span>·</span>
+                    <span>{record.summaryCount} 个产品</span>
+                  </div>
+                  <div className="mt-1 text-xs text-slate-500 truncate">
+                    产品：{record.filters.selectedProductLabel}，
+                    供应商：{record.filters.selectedSuppliersLabels.length > 0
+                      ? `${record.filters.selectedSuppliersLabels.length}家`
+                      : '全部'}
+                    {record.filters.dateFrom || record.filters.dateTo ? (
+                      <>，日期：{record.filters.dateFrom || '不限'} 至 {record.filters.dateTo || '不限'}</>
+                    ) : null}
+                  </div>
+                </div>
+                <button
+                  onClick={() => triggerDownload(record)}
+                  className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-forest-50 text-forest-600 text-sm font-medium hover:bg-forest-100 transition-colors"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  重新下载
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

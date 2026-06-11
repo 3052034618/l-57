@@ -13,12 +13,15 @@ import {
   Package,
   Building2,
   Calendar,
+  Search,
+  GitBranch,
 } from 'lucide-react';
 import { useTaskStore } from '@/store/useTaskStore';
 import { useUserStore } from '@/store/useUserStore';
 import { useUINotificationStore } from '@/store/useUINotificationStore';
 import { useMessageStore, type MessageType, type Message } from '@/store/useMessageStore';
 import Modal from '@/components/common/Modal';
+import TaskTimeline from '@/components/business/TaskTimeline';
 import { formatDate, formatDateTime, getStatusLabel } from '@/utils/format';
 import { cn } from '@/lib/utils';
 
@@ -60,6 +63,7 @@ export default function Notifications() {
     markAsRead,
     markManyAsRead,
     markAllAsRead,
+    markVisibleAsRead,
     addReminderMessages,
     toggleSelected,
     clearSelected,
@@ -74,6 +78,31 @@ export default function Notifications() {
     clearSelected();
     _setActiveTab(tab);
   };
+
+  interface MessageFilters {
+    keyword: string;
+    readStatus: 'all' | 'unread' | 'read';
+    productId: string;
+    deadlineFrom: string;
+    deadlineTo: string;
+  }
+  const [filters, _setFilters] = useState<MessageFilters>({
+    keyword: '',
+    readStatus: 'all',
+    productId: 'all',
+    deadlineFrom: '',
+    deadlineTo: '',
+  });
+
+  const setFilters = (updater: React.SetStateAction<MessageFilters>) => {
+    clearSelected();
+    _setFilters((prev) => {
+      const next = typeof updater === 'function' ? (updater as (prev: MessageFilters) => MessageFilters)(prev) : updater;
+      return next;
+    });
+    setSelectedMessageId((prev) => (prev ? null : prev));
+  };
+
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [reminderModalOpen, setReminderModalOpen] = useState(false);
   const [reminderTaskIds, setReminderTaskIds] = useState<string[]>([]);
@@ -81,10 +110,54 @@ export default function Notifications() {
   const [reminderContent, setReminderContent] = useState(reminderTemplates[0].content);
   const [templateDropdownOpen, setTemplateDropdownOpen] = useState(false);
 
+  const productOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    tasks.forEach((t) => {
+      if (!map.has(t.productId)) {
+        map.set(t.productId, t.productName);
+      }
+    });
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [tasks]);
+
   const filteredMessages = useMemo(() => {
-    if (activeTab === 'all') return messages;
-    return messages.filter((m) => m.type === activeTab);
-  }, [messages, activeTab]);
+    let result = messages;
+    if (activeTab !== 'all') {
+      result = result.filter((m) => m.type === activeTab);
+    }
+    if (filters.keyword.trim()) {
+      const kw = filters.keyword.trim().toLowerCase();
+      result = result.filter((m) =>
+        m.title.toLowerCase().includes(kw) ||
+        m.summary.toLowerCase().includes(kw) ||
+        m.content.toLowerCase().includes(kw)
+      );
+    }
+    if (filters.readStatus === 'unread') {
+      result = result.filter((m) => !m.isRead);
+    } else if (filters.readStatus === 'read') {
+      result = result.filter((m) => m.isRead);
+    }
+    if (filters.productId !== 'all') {
+      result = result.filter((m) => {
+        if (!m.taskId) return true;
+        const task = tasks.find((t) => t.id === m.taskId);
+        return task && task.productId === filters.productId;
+      });
+    }
+    if (filters.deadlineFrom || filters.deadlineTo) {
+      result = result.filter((m) => {
+        if (!m.taskId) return true;
+        const task = tasks.find((t) => t.id === m.taskId);
+        if (!task) return true;
+        const deadline = task.deadline;
+        if (filters.deadlineFrom && deadline < filters.deadlineFrom) return false;
+        if (filters.deadlineTo && deadline > filters.deadlineTo) return false;
+        return true;
+      });
+    }
+    return result;
+  }, [messages, activeTab, filters, tasks]);
 
   const selectedMessage = useMemo(() => {
     return messages.find((m) => m.id === selectedMessageId) || null;
@@ -131,9 +204,9 @@ export default function Notifications() {
   }, [markAsRead, showToast]);
 
   const handleMarkAllAsRead = useCallback(() => {
-    markAllAsRead();
-    showToast('success', '所有消息已标记为已读');
-  }, [markAllAsRead, showToast]);
+    markVisibleAsRead();
+    showToast('success', '当前可见消息已标记为已读');
+  }, [markVisibleAsRead, showToast]);
 
   const handleBatchMarkAsRead = () => {
     if (selectedIds.length === 0) {
@@ -212,6 +285,11 @@ export default function Notifications() {
     return tasks.find((t) => t.id === selectedMessage.taskId) || null;
   }, [tasks, selectedMessage]);
 
+  const taskRelatedMessages = useMemo(() => {
+    if (!selectedTask) return [];
+    return messages.filter((m) => m.taskId === selectedTask.id);
+  }, [messages, selectedTask]);
+
   return (
     <div className="space-y-6">
       <div>
@@ -254,8 +332,65 @@ export default function Notifications() {
           })}
         </div>
 
-        {userRole === 'enterprise' && (
-          <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+        <div className="bg-slate-50/80 border-b border-slate-100 px-4 py-3 flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-slate-600 shrink-0">关键词</label>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                value={filters.keyword}
+                onChange={(e) => setFilters({ ...filters, keyword: e.target.value })}
+                placeholder="搜索标题、内容..."
+                className="pl-8 pr-3 py-1.5 w-56 rounded-md border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-forest-400 focus:border-transparent transition-all"
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-slate-600 shrink-0">状态</label>
+            <select
+              value={filters.readStatus}
+              onChange={(e) => setFilters({ ...filters, readStatus: e.target.value as MessageFilters['readStatus'] })}
+              className="px-3 py-1.5 rounded-md border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-forest-400 focus:border-transparent transition-all"
+            >
+              <option value="all">全部</option>
+              <option value="unread">未读</option>
+              <option value="read">已读</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-slate-600 shrink-0">关联产品</label>
+            <select
+              value={filters.productId}
+              onChange={(e) => setFilters({ ...filters, productId: e.target.value })}
+              className="px-3 py-1.5 rounded-md border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-forest-400 focus:border-transparent transition-all max-w-[200px]"
+            >
+              <option value="all">全部产品</option>
+              {productOptions.map((opt) => (
+                <option key={opt.id} value={opt.id}>{opt.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-slate-600 shrink-0">截止日期</label>
+            <input
+              type="date"
+              value={filters.deadlineFrom}
+              onChange={(e) => setFilters({ ...filters, deadlineFrom: e.target.value })}
+              className="px-3 py-1.5 rounded-md border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-forest-400 focus:border-transparent transition-all"
+            />
+            <span className="text-slate-400 text-sm">至</span>
+            <input
+              type="date"
+              value={filters.deadlineTo}
+              onChange={(e) => setFilters({ ...filters, deadlineTo: e.target.value })}
+              className="px-3 py-1.5 rounded-md border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-forest-400 focus:border-transparent transition-all"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+          {userRole === 'enterprise' && (
             <label className="inline-flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
               <input
                 type="checkbox"
@@ -268,32 +403,36 @@ export default function Notifications() {
                 <span className="text-xs text-slate-400">（已选 {selectedIds.length} 条）</span>
               )}
             </label>
-            <div className="flex items-center gap-2 ml-auto">
-              <button
-                onClick={handleMarkAllAsRead}
-                disabled={unreadCount === 0}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 bg-white text-sm text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <CheckCheck className="h-4 w-4" />
-                全部已读
-              </button>
-              <button
-                onClick={handleBatchMarkAsRead}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-forest-200 bg-white text-sm text-forest-700 hover:bg-forest-50 transition-colors"
-              >
-                <CheckCheck className="h-4 w-4" />
-                批量已读
-              </button>
-              <button
-                onClick={handleOpenReminderModal}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-forest-500 text-sm text-white hover:bg-forest-600 transition-colors"
-              >
-                <Send className="h-4 w-4" />
-                批量催办
-              </button>
-            </div>
+          )}
+          <div className="flex items-center gap-2 ml-auto">
+            <button
+              onClick={handleMarkAllAsRead}
+              disabled={unreadCount === 0}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 bg-white text-sm text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <CheckCheck className="h-4 w-4" />
+              全部已读
+            </button>
+            {userRole === 'enterprise' && (
+              <>
+                <button
+                  onClick={handleBatchMarkAsRead}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-forest-200 bg-white text-sm text-forest-700 hover:bg-forest-50 transition-colors"
+                >
+                  <CheckCheck className="h-4 w-4" />
+                  批量已读
+                </button>
+                <button
+                  onClick={handleOpenReminderModal}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-forest-500 text-sm text-white hover:bg-forest-600 transition-colors"
+                >
+                  <Send className="h-4 w-4" />
+                  批量催办
+                </button>
+              </>
+            )}
           </div>
-        )}
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 min-h-[600px]">
           <div className="lg:col-span-2 border-r border-slate-100 overflow-y-auto max-h-[70vh]">
@@ -421,41 +560,55 @@ export default function Notifications() {
                   </div>
 
                   {selectedTask && (userRole === 'enterprise' || selectedTask.supplierId === 'sup-001') && (
-                    <div className="mt-6 p-4 rounded-xl bg-gradient-to-br from-forest-50 to-sand-50/50 border border-forest-100">
-                      <h4 className="text-sm font-semibold text-forest-800 mb-3">
-                        关联任务信息
-                      </h4>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex items-center gap-2">
-                          <Package className="h-4 w-4 text-slate-400 shrink-0" />
-                          <span className="text-slate-500">产品：</span>
-                          <span className="text-slate-700 font-medium">
-                            {selectedTask.productName}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Building2 className="h-4 w-4 text-slate-400 shrink-0" />
-                          <span className="text-slate-500">供应商：</span>
-                          <span className="text-slate-700 font-medium">
-                            {selectedTask.supplierName}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4 text-slate-400 shrink-0" />
-                          <span className="text-slate-500">截止日期：</span>
-                          <span className="text-slate-700 font-medium">
-                            {formatDate(selectedTask.deadline)}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-slate-400 shrink-0" />
-                          <span className="text-slate-500">当前状态：</span>
-                          <span className="text-forest-600 font-medium">
-                            {getStatusLabel(selectedTask.status)}
-                          </span>
+                    <>
+                      <div className="mt-6 p-4 rounded-xl bg-gradient-to-br from-forest-50 to-sand-50/50 border border-forest-100">
+                        <h4 className="text-sm font-semibold text-forest-800 mb-3">
+                          关联任务信息
+                        </h4>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center gap-2">
+                            <Package className="h-4 w-4 text-slate-400 shrink-0" />
+                            <span className="text-slate-500">产品：</span>
+                            <span className="text-slate-700 font-medium">
+                              {selectedTask.productName}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Building2 className="h-4 w-4 text-slate-400 shrink-0" />
+                            <span className="text-slate-500">供应商：</span>
+                            <span className="text-slate-700 font-medium">
+                              {selectedTask.supplierName}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4 text-slate-400 shrink-0" />
+                            <span className="text-slate-500">截止日期：</span>
+                            <span className="text-slate-700 font-medium">
+                              {formatDate(selectedTask.deadline)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4 text-slate-400 shrink-0" />
+                            <span className="text-slate-500">当前状态：</span>
+                            <span className="text-forest-600 font-medium">
+                              {getStatusLabel(selectedTask.status)}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
+
+                      <div className="mt-4 p-4 rounded-xl bg-white border border-forest-100">
+                        <h4 className="text-sm font-semibold text-forest-800 mb-4 flex items-center gap-2">
+                          <GitBranch className="h-4 w-4" />
+                          任务处理进度
+                        </h4>
+                        <TaskTimeline
+                          task={selectedTask}
+                          messages={taskRelatedMessages}
+                          userRole={userRole}
+                        />
+                      </div>
+                    </>
                   )}
                 </div>
 
