@@ -52,13 +52,14 @@ const reminderTemplates = [
 export default function Notifications() {
   const navigate = useNavigate();
   const { tasks } = useTaskStore();
-  const { userRole } = useUserStore();
+  const { userRole, currentUser } = useUserStore();
   const showToast = useUINotificationStore((s) => s.showToast);
   const {
     messages: allMessages,
     selectedIds,
     markAsRead,
     markManyAsRead,
+    markAllAsRead,
     addReminderMessages,
     toggleSelected,
     clearSelected,
@@ -67,7 +68,12 @@ export default function Notifications() {
 
   const messages = useMemo(() => getVisibleMessages(), [allMessages, userRole]);
 
-  const [activeTab, setActiveTab] = useState<TabKey>('all');
+  const [activeTab, _setActiveTab] = useState<TabKey>('all');
+
+  const setActiveTab = (tab: TabKey) => {
+    clearSelected();
+    _setActiveTab(tab);
+  };
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [reminderModalOpen, setReminderModalOpen] = useState(false);
   const [reminderTaskIds, setReminderTaskIds] = useState<string[]>([]);
@@ -123,6 +129,11 @@ export default function Notifications() {
     markAsRead(id);
     showToast('success', '消息已标记为已读');
   }, [markAsRead, showToast]);
+
+  const handleMarkAllAsRead = useCallback(() => {
+    markAllAsRead();
+    showToast('success', '所有消息已标记为已读');
+  }, [markAllAsRead, showToast]);
 
   const handleBatchMarkAsRead = () => {
     if (selectedIds.length === 0) {
@@ -258,6 +269,14 @@ export default function Notifications() {
               )}
             </label>
             <div className="flex items-center gap-2 ml-auto">
+              <button
+                onClick={handleMarkAllAsRead}
+                disabled={unreadCount === 0}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 bg-white text-sm text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <CheckCheck className="h-4 w-4" />
+                全部已读
+              </button>
               <button
                 onClick={handleBatchMarkAsRead}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-forest-200 bg-white text-sm text-forest-700 hover:bg-forest-50 transition-colors"
@@ -401,7 +420,7 @@ export default function Notifications() {
                     {selectedMessage.content}
                   </div>
 
-                  {selectedTask && (
+                  {selectedTask && (userRole === 'enterprise' || selectedTask.supplierId === 'sup-001') && (
                     <div className="mt-6 p-4 rounded-xl bg-gradient-to-br from-forest-50 to-sand-50/50 border border-forest-100">
                       <h4 className="text-sm font-semibold text-forest-800 mb-3">
                         关联任务信息
@@ -448,7 +467,7 @@ export default function Notifications() {
                     <Check className="h-4 w-4" />
                     已读
                   </button>
-                  {selectedMessage.taskId && (
+                  {selectedMessage.taskId && (userRole === 'enterprise' || selectedTask?.supplierId === 'sup-001') && (
                     <button
                       onClick={() => handleGoProcess(selectedMessage.taskId!)}
                       className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-forest-500 text-sm font-medium text-white hover:bg-forest-600 transition-colors"

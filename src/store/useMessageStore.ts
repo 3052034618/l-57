@@ -38,6 +38,9 @@ const generateInitialMessages = (): Message[] => {
   const hoursAgo = (h: number) => new Date(now.getTime() - h * 3600 * 1000).toISOString();
   const daysAgo = (d: number) => new Date(now.getTime() - d * 24 * 3600 * 1000).toISOString();
 
+  const task001 = mockTasks.find(t => t.id === 'task-001');
+  const task008 = mockTasks.find(t => t.id === 'task-008');
+
   result.push(
     {
       id: 'sys-001',
@@ -68,6 +71,7 @@ const generateInitialMessages = (): Message[] => {
       taskId: 'task-001',
       taskName: '智能电动滑板车 X1 - 华东钢铁集团有限公司',
       taskStatus: 'approved',
+      supplierId: task001?.supplierId,
     },
     {
       id: 'sys-004',
@@ -80,6 +84,7 @@ const generateInitialMessages = (): Message[] => {
       taskId: 'task-008',
       taskName: 'LED护眼台灯 - 绿源塑料科技股份有限公司',
       taskStatus: 'auditing',
+      supplierId: task008?.supplierId,
     }
   );
 
@@ -226,6 +231,9 @@ export const useMessageStore = create<MessageState>((set, get) => ({
     const { userRole, currentUser } = useUserStore.getState();
     if (userRole === 'enterprise') return state.messages;
     const supplierId = currentUser?.id || 'sup-001';
-    return state.messages.filter((m) => !m.supplierId || m.supplierId === supplierId);
+    return state.messages.filter((m) => {
+      if (!m.taskId) return true;
+      return m.supplierId === supplierId;
+    });
   },
 }));

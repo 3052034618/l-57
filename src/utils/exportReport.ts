@@ -1,3 +1,5 @@
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import type { ActivityStage, Task } from '@/types';
 import { formatNumber, formatDate, formatDateTime } from '@/utils/format';
 import { sumStageEmissions, sumTotalEmissions } from '@/utils/emission';
@@ -76,11 +78,11 @@ function buildFiltersText(filters: ExportFilters): string[] {
   return lines;
 }
 
-export async function exportToPDF(
+function buildReportHTML(
   filters: ExportFilters,
   summaryData: ExportSummaryRow[],
   stageData: ExportStageData[]
-): Promise<void> {
+): { html: string; totalPages: number } {
   const now = new Date();
   const filterLines = buildFiltersText(filters);
   const totalEmission = summaryData.reduce((sum, r) => sum + r.totalEmission, 0);
@@ -182,10 +184,7 @@ export async function exportToPDF(
       <meta charset="UTF-8" />
       <title>碳排放汇总报告</title>
       <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; color: #1e293b; margin: 0; padding: 40px; background: #ffffff; }
-        @media print {
-          body { padding: 20px; }
-        }
+        body { font-family: 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1e293b; margin: 0; padding: 40px; background: #ffffff; width: 794px; }
         .report-header { text-align: center; border-bottom: 2px solid #166534; padding-bottom: 20px; margin-bottom: 24px; }
         .report-title { font-size: 24px; font-weight: 700; color: #166534; margin: 0 0 8px 0; }
         .report-subtitle { font-size: 13px; color: #64748b; margin: 0; }
@@ -193,15 +192,13 @@ export async function exportToPDF(
         .section-title { font-size: 16px; font-weight: 600; color: #166534; margin: 0 0 12px 0; padding-bottom: 6px; border-bottom: 1px solid #d1fae5; }
         .filters-box { background: #f0fdf4; padding: 12px 16px; border-radius: 8px; border: 1px solid #bbf7d0; }
         .filters-box p { margin: 4px 0; font-size: 13px; color: #334155; }
-        .summary-total { display: flex; gap: 24px; margin-bottom: 16px; flex-wrap: wrap; }
-        .total-item { flex: 1; min-width: 140px; padding: 12px 16px; background: #f8fafc; border-radius: 8px; border-left: 3px solid #166534; }
-        .total-label { font-size: 12px; color: #64748b; margin: 0 0 4px 0; }
-        .total-value { font-size: 18px; font-weight: 700; color: #15803d; margin: 0; }
-        table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        th { background: #f0fdf4; padding: 10px 12px; text-align: left; border-bottom: 2px solid #86efac; color: #166534; font-weight: 600; }
-        th.text-right, td.text-right { text-align: right; }
-        td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; color: #334155; }
-        tr:hover { background: #f8fafc; }
+        .summary-total { display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+        .total-item { flex: 1; min-width: 120px; padding: 10px 14px; background: #f8fafc; border-radius: 8px; border-left: 3px solid #166534; }
+        .total-label { font-size: 11px; color: #64748b; margin: 0 0 4px 0; }
+        .total-value { font-size: 16px; font-weight: 700; color: #15803d; margin: 0; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        th { background: #f0fdf4; padding: 8px 10px; text-align: left; border-bottom: 2px solid #86efac; color: #166534; font-weight: 600; }
+        td { padding: 8px 10px; border-bottom: 1px solid #e2e8f0; color: #334155; }
         .report-footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 11px; color: #94a3b8; }
       </style>
     </head>
@@ -279,16 +276,64 @@ export async function exportToPDF(
     </html>
   `;
 
-  const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const filename = `碳排放汇总报告_${getTimestamp()}.html`;
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return { html: htmlContent, totalPages: Math.ceil((summaryData.length * 1.5 + stageData.length * 2.5 + 3) / 12) };
+}
+
+export async function exportToPDF(
+  filters: ExportFilters,
+  summaryData: ExportSummaryRow[],
+  stageData: ExportStageData[]
+): Promise<void> {
+  const { html } = buildReportHTML(filters, summaryData, stageData);
+
+  const container = document.createElement('div');
+  container.style.position = 'absolute';
+  container.style.left = '-9999px';
+  container.style.top = '-9999px';
+  container.style.width = '794px';
+  container.style.background = '#ffffff';
+  container.innerHTML = `<div id="pdf-content">${html}</div>`;
+  document.body.appendChild(container);
+
+  try {
+    const contentEl = container.querySelector('#pdf-content') as HTMLElement;
+    const canvas = await html2canvas(contentEl, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: '#ffffff',
+    });
+
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4',
+    });
+
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pageWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+    let heightLeft = imgHeight;
+    let position = 0;
+
+    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+
+    while (heightLeft >= 0) {
+      position = heightLeft - imgHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+    }
+
+    const filename = `碳排放汇总报告_${getTimestamp()}.pdf`;
+    pdf.save(filename);
+  } finally {
+    document.body.removeChild(container);
+  }
 }
 
 export function exportToExcel(
