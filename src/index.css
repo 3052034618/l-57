@@ -1,0 +1,125 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@400;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  line-height: 1.6;
+  font-weight: 400;
+  color: #1B4332;
+  background-color: #FEFAE0;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: linear-gradient(135deg, #FEFAE0 0%, #F0F7F4 100%);
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #B0D1BC;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #7FB394;
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-forest-600 to-forest-500 text-white font-medium rounded-lg hover:from-forest-700 hover:to-forest-600 transition-all duration-200 shadow-card hover:shadow-card-hover disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-white text-forest-600 font-medium rounded-lg border border-forest-300 hover:bg-forest-50 hover:border-forest-400 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-white text-clay-500 font-medium rounded-lg border border-clay-300 hover:bg-clay-50 hover:border-clay-400 transition-all duration-200;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-forest-600 font-medium rounded-lg hover:bg-forest-50 transition-all duration-200;
+  }
+
+  .card {
+    @apply bg-white rounded-xl shadow-card border border-forest-100 overflow-hidden;
+  }
+
+  .input-base {
+    @apply w-full px-4 py-2.5 border border-forest-200 rounded-lg bg-white text-forest-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-forest-400 focus:border-transparent transition-all duration-200;
+  }
+
+  .input-error {
+    @apply border-clay-400 focus:ring-clay-400 bg-clay-50;
+  }
+
+  .tag {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full;
+  }
+
+  .tag-pending {
+    @apply bg-sand-100 text-sand-500;
+  }
+
+  .tag-draft {
+    @apply bg-slate-100 text-slate-500;
+  }
+
+  .tag-submitted {
+    @apply bg-forest-100 text-forest-500;
+  }
+
+  .tag-auditing {
+    @apply bg-sky-100 text-sky-600;
+  }
+
+  .tag-approved {
+    @apply bg-forest-100 text-forest-600;
+  }
+
+  .tag-rejected {
+    @apply bg-clay-100 text-clay-500;
+  }
+
+  .sidebar-item {
+    @apply flex items-center gap-3 px-4 py-3 rounded-lg text-forest-600 hover:bg-forest-50 hover:text-forest-700 transition-all duration-200 cursor-pointer;
+  }
+
+  .sidebar-item-active {
+    @apply bg-forest-600 text-white hover:bg-forest-700 hover:text-white;
+  }
+
+  .table-row {
+    @apply border-b border-forest-100 hover:bg-forest-50/50 transition-colors duration-150;
+  }
+
+  .divider {
+    @apply h-px bg-forest-100;
+  }
+}
